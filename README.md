@@ -9,9 +9,9 @@
 > 做等价脱敏（见第八节）。用自己的账号使用本仓库，风险自担。
 
 - 协议层：OAuth2 + AES/RSA 双层加密 + md5 签名，纯 Python 复现，不依赖 App
-- 判定层：`compliance.py` 四档门禁（协议 / 硬闸门 / 经验区间 / 自设），14 条真实记录回放 0 误杀
+- 判定层：`tsn/compliance.py` 四档门禁（协议 / 硬闸门 / 经验区间 / 自设），14 条真实记录回放 0 误杀
 - 生成层：步幅-步频-配速自洽曲线 + GPS 噪声 + 三种跑道原型 + 60 s 步数分桶
-- 兼容层：`tsn_fields.py` 字段对照表 + `migrate_legacy()` 一键归一 + `audit_submission()` 体检
+- 兼容层：`tsn/fields.py` 字段对照表 + `migrate_legacy()` 一键归一 + `audit_submission()` 体检
 
 ---
 
@@ -99,34 +99,60 @@ python run.py backfill --plan plan.json --submit --max 3 --per-day 3 --window 6-
 
 ## 三、目录
 
+根目录只留入口脚本与配置模板，代码按职责分进四个包：
+
 ```
-├── run.py                       非交互 CLI（统一入口）
-├── main.py                      交互式菜单（兼容保留）
-├── TiShiNengSdkPublic.py        公版后端（sys_type=2）：AES+RSA+md5 签名、OAuth2
-├── TiShiNengSdkPrivate.py       私版后端（sys_type=1）：token header + RSA 加密密码
-├── TiShiNengSdkBase.py          HTTP 基类（HTTPS、超时、统一错误）
-├── TiShiNengRunPathManage.py    点串生成（App 原生 9 字段字符串格式）
-├── tsn_crypto.py                AES-CBC/ECB、RSA 分段、PKCS#7 / 零填充
-├── tsn_geo.py                   haversine、局部投影、坐标规范化
-├── tsn_buckets.py               60 s 步数分桶（最大余数法）
-├── tsn_track_filter.py          轨迹清洗（重复点 / 几何尖刺）
-├── tsn_track_audit.py           轨迹自洽校验（距离/速度/时间戳/累计）
-├── tsn_log.py                   日志（loguru，缺失时回落 logging）
-├── tsn_env.py                   设备环境自检报文（root/selinux/xposed/代理…）
-├── tsn_submit.py                提交体组装、签名要素、合格判定公式
-├── tsn_face_plan.py             中途人脸点的时机换算
-├── tsn_dao.py                   账号 / 学校服务层（异步 SQLAlchemy）
-├── tsn_face_store.py            本地人脸图片管理
-├── tsn_fields.py           ★ 字段对照表（81 条）+ migrate_legacy() + audit_submission()
-├── compliance.py           ★ 合格门禁（四档分层）
-├── track_resample.py / track_metrics.py / track_shape.py / track_perturb.py / track_plot.py
-├── backfill.py             ★ 批量编排执行器（台账/限速/盯守）
-├── progress.py                 学期盘点（只读）
-├── verify_plan.py              独立复核器（自带 haversine，不复用合规代码）
-├── resilient_client.py         token 失效自重试包装
-├── tsn_http.py                 httpx 封装（超时/重试/时区）
-├── tsn_routes.py               路由常量（令牌化路径 ↔ 语义名）
-├── tsnClient.py                账号 → 已登录客户端
+├── run.py                      非交互 CLI（唯一入口；子命令会转发到 app/ 与 track/ 的脚本）
+├── config.example.json         配置模板（复制成 config.json 后填写，config.json 不入库）
+│
+├── tsn/                        协议事实层：服务端怎么判、字段长什么样
+│   ├── crypto.py               AES-CBC/ECB、RSA 分段、PKCS#7 / 零填充
+│   ├── geo.py                  haversine、局部投影、坐标规范化
+│   ├── buckets.py              60 s 步数分桶（最大余数法）
+│   ├── env.py                  设备环境自检报文（root/selinux/xposed/代理…）
+│   ├── submit.py               提交体组装、签名要素、合格判定公式
+│   ├── face_plan.py            中途人脸点的时机换算
+│   ├── face_store.py           本地人脸图片管理
+│   ├── fields.py           ★  字段对照表（81 条）+ migrate_legacy() + audit_submission()
+│   ├── compliance.py       ★  合格门禁（四档分层）
+│   ├── protocol.py             报文分类（业务错误 / 网关拦截 / 服务端降级）
+│   ├── http.py                 httpx 封装（超时/重试/时区）
+│   ├── routes.py               路由常量（令牌化路径 ↔ 语义名）
+│   ├── secrets.py              令牌 / 凭据的本地存放
+│   ├── dao.py                  账号 / 学校服务层（异步 SQLAlchemy）
+│   └── log.py                  日志（loguru，缺失时回落 logging）
+│
+├── sdk/                        与校园云通信的 SDK 与本地服务
+│   ├── public.py               公版后端（sys_type=2）：AES+RSA+md5 签名、OAuth2
+│   ├── private.py              私版后端（sys_type=1）：token header + RSA 加密密码
+│   ├── base.py                 HTTP 基类（HTTPS、超时、统一错误）
+│   ├── runpath.py              点串生成（App 原生 9 字段字符串格式）
+│   ├── client.py               账号 → 已登录客户端
+│   ├── runserver.py            跑量提交编排（人脸 → 轨迹 → 门禁 → 提交 → 回读）
+│   ├── resilient.py            token 失效自重试包装
+│   ├── spider.py               历史记录抓取
+│   ├── validcount.py           有效次数统计
+│   └── errors.py               异常与错误码
+│
+├── track/                      轨迹生成与质检
+│   ├── resample.py             等间隔重采样
+│   ├── shape.py                线路形态合成（椭圆 / 折返 / 8 字）
+│   ├── metrics.py              距离 / 配速 / 步频 / 步幅
+│   ├── perturb.py              平滑扰动（避免机械重复）
+│   ├── plot.py                 轨迹出图
+│   ├── filter.py               轨迹清洗（重复点 / 几何尖刺）
+│   ├── audit.py                轨迹自洽校验（距离 / 速度 / 时间戳 / 累计）
+│   └── verify_plan.py          独立复核器（自带 haversine，不复用合规代码）
+│
+├── app/                        应用层
+│   ├── config.py               配置读取（config.json / TSN_CONFIG）
+│   ├── models.py               ORM 模型
+│   ├── database.py             异步引擎 / 会话
+│   ├── device.py               设备画像（brand/model/system/osver）
+│   ├── main.py                 交互式菜单
+│   ├── backfill.py         ★  批量编排执行器（台账 / 限速 / 盯守）
+│   └── progress.py             学期盘点（只读）
+│
 ├── docs/                       合格规格 / 字段对照 / 判定链路 / 接口报文 / 逆向笔记 / 重构说明
 ├── tools/                      sanitize.py、audit_gates.py、render_field_doc.py、snapshot_legacy.py
 └── tests/                      协议、路由契约、门禁、字段、几何等价性
@@ -143,7 +169,7 @@ python run.py backfill --plan plan.json --submit --max 3 --per-day 3 --window 6-
 | 学校后端（`lan_url`） | 业务 | 公版 OAuth2 Bearer；每请求动态生成 `aesRandomKey=RSA(md5(token+ts))` 与 `sign` |
 
 **踩过的坑**：`lan_url` 不带尾斜杠时 `cloudUrl + url` 会拼成 `https://xxx.tsnkj.comupms/...`
-（`getaddrinfo failed`）。所有拼接统一走 `tsn_routes.join_url()`。
+（`getaddrinfo failed`）。所有拼接统一走 `tsn.routes.join_url()`。
 
 报文结构（`addExerciseRecord`）与五处判定点的位置见
 [`docs/接口报文与判定.md`](docs/接口报文与判定.md)；判定链路见
@@ -153,7 +179,7 @@ python run.py backfill --plan plan.json --submit --max 3 --per-day 3 --window 6-
 
 ## 五、判定层：门禁怎么分层
 
-`compliance.py` 给每条检查打上 tier，模式决定哪些 tier 致命：
+`tsn/compliance.py` 给每条检查打上 tier，模式决定哪些 tier 致命：
 
 | tier | 含义 | 致命？ |
 |---|---|---|
@@ -163,7 +189,7 @@ python run.py backfill --plan plan.json --submit --max 3 --per-day 3 --window 6-
 | `self` | 自设的保守要求（设备画像一致性） | 仅 `strict` |
 
 ```bash
-python -c "import compliance"                       # 默认 balanced
+python -c "from tsn import compliance"                       # 默认 balanced
 python tools/audit_gates.py                         # 14 条真实记录回放，0 误杀
 ```
 
@@ -198,14 +224,14 @@ python tools/audit_gates.py                         # 14 条真实记录回放�
 ## 七、兼容层：同一接口的两个客户端版本
 
 `docs/字段对照.md` 是机器生成的字段表（81 个字段，每条标 `旧值 → 新值 / 判定权重 / 改法 / 证据`），
-开头另有一张 **26 项必改清单**。代码入口是 `tsn_fields.py`：
+开头另有一张 **26 项必改清单**。代码入口是 `tsn/fields.py`：
 
 ```python
-import tsn_fields
+import tsn.fields
 
-payload = tsn_fields.migrate_legacy(old_payload, device_id="abc123")   # 字段归一 + 格式化
-issues  = tsn_fields.audit_submission(payload)                          # 逐字段体检
-print(tsn_fields.to_markdown())                                        # 重新生成文档
+payload = tsn.fields.migrate_legacy(old_payload, device_id="abc123")   # 字段归一 + 格式化
+issues  = tsn.fields.audit_submission(payload)                          # 逐字段体检
+print(tsn.fields.to_markdown())                                        # 重新生成文档
 ```
 
 必改项集中在六组：
@@ -273,17 +299,17 @@ python tools/sanitize.py           # 就地脱敏（幂等，重复跑不会二�
 ## 十、测试与工具
 
 ```bash
-python -m pytest tests -q          # 81 个用例
+python -m pytest tests -q          # 81 个用例（拆分目录后同样 81 个）
 python tools/audit_gates.py        # 14 条真实记录回放（5 条合格 0 误杀 + 被拒记录命中对应闸门）
 python tools/render_field_doc.py   # 重新生成 docs/字段对照.md
 python tools/sanitize.py --check   # 脱敏残留检查
 python run.py selftest --count 5   # 生成器 + 门禁端到端
-python verify_plan.py              # 独立复核 plan.json
+python run.py verify-plan         # 独立复核 plan.json
 ```
 
 `tests/test_legacy_equivalence.py` 用 `tests/fixtures/legacy_golden.json` 比对几何/分桶/清洗/
 重采样/校验/提交要素/环境报文/人脸换算/加解密九个模块的数值 —— 冻结基线由
-`tools/snapshot_legacy.py` 生成，用来证明重构没有改变行为。`verify_plan.py` 则是刻意做成的
+`tools/snapshot_legacy.py` 生成，用来证明重构没有改变行为。`track/verify_plan.py` 则是刻意做成的
 第二实现（自带 haversine、不复用 `compliance`），两份实现给出同一个结论才算通过。
 
 ---
@@ -291,18 +317,18 @@ python verify_plan.py              # 独立复核 plan.json
 ## 十一、常见问题
 
 **`Invalid access token`**：多进程各登录一次会互相踢 token。单进程单次登录跑完，或用
-`tsnClient`（带 `resilient_client` 重试）。
+`sdk/client.py`（带 `sdk/resilient.py` 的重试包装）。
 
 **`您的账号…错误登录次数过多，已被冻结`**：登录太频。冻结期重试返回「用户名或密码错误」，
 很容易误判成密码错。等报错里的剩余秒数 +45 s，并复用会话。
 
 **`syntax error, expect [, actual {`**：该记录的 JSON 列存的不是数组，通常是把 dict 直接塞进
-点串数组。`compliance.py` 的 `protocol` 档会拦住。
+点串数组。`tsn/compliance.py` 的 `protocol` 档会拦住。
 
 **控制台乱码**：`chcp 65001` + `PYTHONIOENCODING=utf-8`。
 
 **`getExerciseSetting` 返回「已被拉入禁跑黑名单」**：账号级处罚（客户端 remark 后缀 `-黑名单15`），
-与设备/学校/跑型都无关，只能等；`backfill.py --watch` 会替你等。注意封禁只挡
+与设备/学校/跑型都无关，只能等；`app/backfill.py --watch` 会替你等。注意封禁只挡
 `getExerciseSetting`，不挡 `addExerciseRecord` —— 封禁期提交仍会成功并继续累计处罚。
 
 **提交成功但 `reachRange=0.000`**：该条未计入成绩。用 `reachRange == sportRange` 判断，

@@ -8,7 +8,7 @@ import ast
 import pathlib
 import unittest
 
-import tsn_routes as R
+from tsn import routes as R
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKIP_DIRS = {'tests', '__pycache__', '.git', '.venv'}

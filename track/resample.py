@@ -4,10 +4,10 @@ import random
 from bisect import bisect_right
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Sequence, Tuple
-from tsn_log import logger
-from tsn_track_filter import CleanOptions, clean_track
-from tsn_geo import LocalProjection, haversine_distance, normalize_points
-from track_metrics import steps_for_interval, stride_for_speed
+from tsn.log import logger
+from track.filter import CleanOptions, clean_track
+from tsn.geo import LocalProjection, haversine_distance, normalize_points
+from track.metrics import steps_for_interval, stride_for_speed
 
 class TrackGenerationError(ValueError):
     pass

@@ -27,7 +27,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import compliance  # noqa: E402
+from tsn import compliance  # noqa: E402
 
 FIXTURES = ROOT / 'tests' / 'fixtures'
 PLACEHOLDER_IDENTIFY = '93e09535-aea8-5005-8cdd-2533746aa284'

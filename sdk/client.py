@@ -13,16 +13,16 @@ import uuid
 
 from loguru import logger
 
-import tsn_protocol
-import tsn_secrets
-from TiShiNengError import TiShiNengError
-from database import get_db
-from deviceModel import deviceModel
-from models import TsnAccount_Model
-from tsn_dao import addTsnAccount, getTsnAccountByUid, getTsnAccountByid, updateAccessToken
-from tsn_dao import getSchoolBySchoolId
-from TiShiNengSdkPrivate import TiShiNengPrivate
-from TiShiNengSdkPublic import TiShiNengSdkPublic
+from tsn import protocol
+from tsn import secrets
+from sdk.errors import TiShiNengError
+from app.database import get_db
+from app.device import deviceModel
+from app.models import TsnAccount_Model
+from tsn.dao import addTsnAccount, getTsnAccountByUid, getTsnAccountByid, updateAccessToken
+from tsn.dao import getSchoolBySchoolId
+from sdk.private import TiShiNengPrivate
+from sdk.public import TiShiNengSdkPublic
 
 TOKEN_SKEW_SECONDS = 120
 
@@ -37,13 +37,13 @@ _LOGIN_MSG_MAP = (
 def _account_password(account: TsnAccount_Model) -> str:
     """出库解密；历史明文原样返回（下次登录成功后会回写密文）。"""
     try:
-        return tsn_secrets.decrypt_secret(account.password)
+        return secrets.decrypt_secret(account.password)
     except Exception as exc:
         raise TiShiNengError(f'本地凭据无法解密（密钥文件丢失？）：{exc}', 10001)
 
 
 def _store_password(password: str) -> str:
-    return tsn_secrets.migrate_legacy(password)
+    return secrets.migrate_legacy(password)
 
 
 def token_is_fresh(account: TsnAccount_Model) -> bool:
@@ -61,7 +61,7 @@ def token_is_fresh(account: TsnAccount_Model) -> bool:
     return _dt.datetime.now(deadline.tzinfo) < deadline
 
 
-def _map_login_error(result: tsn_protocol.TsnResult) -> str:
+def _map_login_error(result: protocol.TsnResult) -> str:
     text = (result.message or '').lower()
     for needle, message in _LOGIN_MSG_MAP:
         if needle in text:
@@ -93,8 +93,8 @@ async def _rotate_token(tsn, account: TsnAccount_Model, *, allow_refresh: bool) 
                 account.refresh_token = resp.get('refresh_token', account.refresh_token)
                 logger.info('token 已通过 refresh_token 轮换')
                 return
-        except tsn_protocol.TsnProtocolError as exc:
-            if exc.kind is tsn_protocol.ResultKind.SERVER_DEGRADED:
+        except protocol.TsnProtocolError as exc:
+            if exc.kind is protocol.ResultKind.SERVER_DEGRADED:
                 raise TiShiNengError(f'认证服务暂时不可用：{exc.message}', 503) from exc
             logger.info('refresh_token 不可用（{}），改用密码登录', exc.kind.value)
         except TiShiNengError as exc:
@@ -103,7 +103,7 @@ async def _rotate_token(tsn, account: TsnAccount_Model, *, allow_refresh: bool) 
 
     try:
         resp = await tsn.getAccessToken(account.username, password)
-    except tsn_protocol.TsnProtocolError as exc:
+    except protocol.TsnProtocolError as exc:
         raise TiShiNengError(_map_login_error(exc), exc.http_status or 10001) from exc
     if not resp.get('access_token'):
         raise TiShiNengError('重新登录失败：响应缺少 access_token', 10001)
@@ -140,11 +140,11 @@ async def getPrivateVersionClient(accountModel: TsnAccount_Model):
     try:
         await tsn.getStudentInfo()
         return tsn
-    except tsn_protocol.TsnProtocolError as exc:
+    except protocol.TsnProtocolError as exc:
         if not exc.is_auth_expired:
             raise
     except TiShiNengError as exc:
-        if not tsn_protocol.is_auth_expired(exc):
+        if not protocol.is_auth_expired(exc):
             raise
 
     logger.info('私有版 token 失效，重新登录')
@@ -204,8 +204,8 @@ async def tsnPasswordAuthServer(schoolId, userName, password, session):
         tsn = _new_public_client(school, schoolId, deviceId)
         try:
             login_resp = await tsn.getAccessToken(userName, password)
-        except tsn_protocol.TsnProtocolError as exc:
-            if exc.kind is tsn_protocol.ResultKind.BIZ_ERROR:
+        except protocol.TsnProtocolError as exc:
+            if exc.kind is protocol.ResultKind.BIZ_ERROR:
                 raise TiShiNengError(_map_login_error(exc)) from exc
             raise
         if 'access_token' not in login_resp:

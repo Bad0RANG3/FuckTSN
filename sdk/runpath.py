@@ -1,14 +1,14 @@
 from __future__ import annotations
 import random
 from typing import List, Optional, Sequence, Tuple
-from tsn_log import logger
-from tsn_buckets import DEFAULT_BUCKET_SECONDS, BucketAllocation, StepInterval, allocate_steps
-from tsn_track_filter import CleanOptions, InsufficientTrackError, clean_track
-from tsn_geo import EARTH_RADIUS_KM, EARTH_RADIUS_M, METERS_PER_KM, LocalProjection, haversine_distance, normalize_points, point_list_distance
-from track_metrics import cadence_spm, compute_metrics, cumulative_distances, format_pace, pace_seconds_per_km, stride_for_speed, steps_for_interval
-from track_resample import PointRisk, ResampleOptions, ResampledTrack, TrackGenerationError, TrackSample, resample_track
-from track_perturb import point_noise
-from tsn_track_audit import ValidationReport, validate_track
+from tsn.log import logger
+from tsn.buckets import DEFAULT_BUCKET_SECONDS, BucketAllocation, StepInterval, allocate_steps
+from track.filter import CleanOptions, InsufficientTrackError, clean_track
+from tsn.geo import EARTH_RADIUS_KM, EARTH_RADIUS_M, METERS_PER_KM, LocalProjection, haversine_distance, normalize_points, point_list_distance
+from track.metrics import cadence_spm, compute_metrics, cumulative_distances, format_pace, pace_seconds_per_km, stride_for_speed, steps_for_interval
+from track.resample import PointRisk, ResampleOptions, ResampledTrack, TrackGenerationError, TrackSample, resample_track
+from track.perturb import point_noise
+from track.audit import ValidationReport, validate_track
 __all__ = ['EARTH_RADIUS_KM', 'EARTH_RADIUS_M', 'METERS_PER_KM', 'TsnRunPolyline', 'genTiShiNengRunPathRepeat', 'generate_run_track', 'to_legacy_points', 'haversine_distance', 'getPointListDistance', 'LocalProjection', 'ResampleOptions', 'ResampledTrack', 'TrackGenerationError', 'InsufficientTrackError']
 
 def getPointListDistance(pointList: Sequence[Sequence[float]]) -> float:

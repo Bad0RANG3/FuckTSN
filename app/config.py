@@ -10,7 +10,7 @@
 
 用法::
 
-    import config
+    from app import config
     cfg = config.load()             # dict，缺失键自动补 DEFAULTS
     config.get('school_id')         # 便捷访问
     config.config_path()            # 当前生效的配置文件路径

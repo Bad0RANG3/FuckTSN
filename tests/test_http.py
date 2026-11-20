@@ -5,9 +5,9 @@ from unittest import mock
 
 import httpx
 
-import tsn_http
-import tsn_protocol
-from tsn_protocol import ResultKind
+from tsn import http
+from tsn import protocol
+from tsn.protocol import ResultKind
 
 
 def _json(payload, status=200):
@@ -16,11 +16,11 @@ def _json(payload, status=200):
 
 class CoreRetry(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        tsn_http.TsnHttpCore._sleep = staticmethod(lambda attempt: _noop())
+        http.TsnHttpCore._sleep = staticmethod(lambda attempt: _noop())
 
     def _core(self, handler, retries=2):
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        return tsn_http.TsnHttpCore(base_url='http://a.example.com', client=client, protocol_retries=retries)
+        return http.TsnHttpCore(base_url='http://a.example.com', client=client, protocol_retries=retries)
 
     async def test_degraded_then_ok_retries_and_succeeds(self):
         calls = []
@@ -68,7 +68,7 @@ class OAuthTransport(unittest.IsolatedAsyncioTestCase):
     """令牌端点必须走 query string —— 表单体会被服务端拒绝（428/验证码不能为空）。"""
 
     async def test_access_token_sends_params_in_query_not_body(self):
-        from TiShiNengSdkPublic import TiShiNengSdkPublic
+        from sdk.public import TiShiNengSdkPublic
 
         captured = {}
 
@@ -78,7 +78,7 @@ class OAuthTransport(unittest.IsolatedAsyncioTestCase):
             captured['auth'] = request.headers.get('authorization', '')
             return _json({'access_token': 'tok', 'refresh_token': 'ref', 'expires_in': 86399})
 
-        tsn_http.TsnHttpCore._sleep = staticmethod(lambda attempt: _noop())
+        http.TsnHttpCore._sleep = staticmethod(lambda attempt: _noop())
         sdk = TiShiNengSdkPublic(0, 1, 'demo', 'openid', 'dev', 'Xiaomi', 'num', 'android', '', '')
         sdk.setCloudUrl('http://a.example.com')
         sdk.core.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))

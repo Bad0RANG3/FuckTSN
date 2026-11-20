@@ -5,12 +5,12 @@ import urllib.parse
 
 from loguru import logger
 
-import tsn_protocol
-import tsn_routes
-from tsn_crypto import AESCrypto
-from tsn_crypto import RSACrypto
-from TiShiNengError import TiShiNengError
-from TiShiNengSdkBase import TiShiNengSdkBase
+from tsn import protocol
+from tsn import routes
+from tsn.crypto import AESCrypto
+from tsn.crypto import RSACrypto
+from sdk.errors import TiShiNengError
+from sdk.base import TiShiNengSdkBase
 
 # 私有化部署版：报文是 {returnCode, returnMsg, data} 三元组，
 # 且部分接口用「token 派生密钥」再签一次（getSign2）。
@@ -86,7 +86,7 @@ class TiShiNengPrivate:
     def setSchoolUrl(self, schoolUrl):
         if not schoolUrl:
             return
-        normalized = tsn_routes.normalize_base_url(schoolUrl)
+        normalized = routes.normalize_base_url(schoolUrl)
         self.schoolUrl = normalized.rstrip('/')
         self.core.set_base_url(self.schoolUrl)
 

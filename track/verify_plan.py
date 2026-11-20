@@ -31,16 +31,16 @@ import statistics
 import sys
 import unicodedata
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-import backfill        # noqa: E402  （只借生成函数；判定代码全部在下面重写）
-import config          # noqa: E402
+from app import backfill        # noqa: E402  （只借生成函数；判定代码全部在下面重写）
+from app import config          # noqa: E402
 
 try:                   # 只为在报告里记录步幅基准漂移，不参与判定
-    import track_metrics  # noqa: E402
-    STRIDE_BASE_M = float(getattr(track_metrics, 'STRIDE_BASE_M', 0.0))
+    from track import metrics  # noqa: E402
+    STRIDE_BASE_M = float(getattr(metrics, 'STRIDE_BASE_M', 0.0))
 except Exception:      # noqa: BLE001
     STRIDE_BASE_M = 0.0
 
@@ -91,7 +91,7 @@ def decimals(text: str) -> int:
 def install_deterministic_random(seed: int) -> None:
     """把 ``random.Random()`` 的默认种子接到确定性计数器上。
 
-    TiShiNengRunPathManage.to_legacy_points 内部用的是未播种的 random.Random()，
+    runpath.to_legacy_points 内部用的是未播种的 random.Random()，
     不接管的话同一份 plan 每次重跑坐标噪声都不同（里程抖动几米），--seed 就名不副实。
     """
     real = random.Random

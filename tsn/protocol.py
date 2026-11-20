@@ -29,7 +29,7 @@ from typing import Any, Optional
 
 import httpx
 
-from TiShiNengError import ErrorCode, TiShiNengError, TsnProtocolError
+from sdk.errors import ErrorCode, TiShiNengError, TsnProtocolError
 
 
 class ResultKind(enum.Enum):

@@ -8,15 +8,15 @@ from typing import Any, Dict
 
 from loguru import logger
 
-import deviceModel
-import tsn_env
-import tsn_submit
-import tsn_protocol
-import tsn_routes
-from tsn_crypto import AESCrypto
-from tsn_crypto import RSACrypto
-from TiShiNengError import TiShiNengError
-from TiShiNengSdkBase import TiShiNengSdkBase
+from app.device import deviceModel
+from tsn import env
+from tsn import submit
+from tsn import protocol
+from tsn import routes
+from tsn.crypto import AESCrypto
+from tsn.crypto import RSACrypto
+from sdk.errors import TiShiNengError
+from sdk.base import TiShiNengSdkBase
 
 # 报文分类与重试策略统一在 tsn_protocol / tsn_http，本模块只负责「公有版签名」。
 # 注意：getAccessToken 的密码密文必须走 query string（实测表单体返回 428 /
@@ -48,7 +48,7 @@ class TiShiNengSdkPublic:
         self.passwordAesUtils = AESCrypto('thanks,pig4cloud', 'thanks,pig4cloud')
         self._environmentOverride = None
         self._envSignals = None
-        self.appSignHash = tsn_submit.KNOWN_APP_SIGN_HASH
+        self.appSignHash = submit.KNOWN_APP_SIGN_HASH
         self.rsaUtils = RSACrypto('MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgzQ7BYqBZ5LTjoOb9aHO8fI0hbww9YRW2lnqIdDyIjBwmhthTR+EmiKNm4yFKg6Vz2GW5ix3IdUQdaAq3ZZ7se/dCOTpu3dk15ZgkO6ZImUE7gqzSXXJ0NaACudk4yJwk3Q69kB4m3xIKxiOlG2HtbEed01LrUmLag9VOP96BuSao2sP4Als5hA/8C6KqdihTOcZF1RT+lqrT3Qvja7q+qI5QZw9d7NrFFycQs8jk8O49f9mkvLZRZCCWEbwzuCPTlMy/ZNAsMeU/gNSRKUnquOiPboc2KUhsvY4cK0GeuS9vuIrMGE01L/BCc+rUrautq3n3WiIVJwnwWiJtgk33QIDAQAB')
         self.Cookie = 'host=' + self.schoolCode
         self.headers = {
@@ -66,7 +66,7 @@ class TiShiNengSdkPublic:
             'signatureMD5': '7F:C0:22:E6:7C:7D:2A:CC:C3:C8:77:0A:46:13:8D:C3',
             'brand': self.brandName,
             'model': self.deviceNum,
-            'system': getattr(getattr(deviceModel, 'deviceModel', deviceModel), 'system', 'Android'),
+            'system': getattr(deviceModel, 'system', 'Android'),
             'version': self.AndroidOsVersion,
             'uniqueCode': self.deviceId,
         }
@@ -99,11 +99,11 @@ class TiShiNengSdkPublic:
 
     @staticmethod
     def jsonOrRaise(resp):
-        """保留旧入口；新代码请直接用 tsn_protocol.classify_response。"""
+        """保留旧入口；新代码请直接用 protocol.classify_response。"""
         try:
             return resp.json()
         except ValueError:
-            result = tsn_protocol.classify_response(resp)
+            result = protocol.classify_response(resp)
             raise result.to_error()
 
     @staticmethod
@@ -152,7 +152,7 @@ class TiShiNengSdkPublic:
         """
         if not cloudUrl:
             return
-        normalized = tsn_routes.normalize_base_url(cloudUrl)
+        normalized = routes.normalize_base_url(cloudUrl)
         self.cloudUrl = normalized.rstrip('/')
         self.core.set_base_url(self.cloudUrl)
         if self.cloudUrl.startswith('http://'):
@@ -171,7 +171,7 @@ class TiShiNengSdkPublic:
         self._environmentOverride = dict(environment) if environment else None
 
     def setCertDer(self, cert_der: bytes | None):
-        self.appSignHash = tsn_submit.app_sign_hash(bytes(cert_der)) if cert_der else tsn_submit.KNOWN_APP_SIGN_HASH
+        self.appSignHash = submit.app_sign_hash(bytes(cert_der)) if cert_der else submit.KNOWN_APP_SIGN_HASH
 
     def setEnvSignals(self, signals):
         self._envSignals = signals
@@ -185,7 +185,7 @@ class TiShiNengSdkPublic:
 
     def _sign(self, params: dict, timeStr: str) -> str:
         params.update({'appId': self.getAesAppid(timeStr), 'appSecret': self.getAesAppSecret(timeStr)})
-        auth_info = tsn_submit.build_auth_info(params)
+        auth_info = submit.build_auth_info(params)
         return self.getMd5(self.aesUtils.encrypt(urllib.parse.unquote(auth_info)))
 
     def getSign(self, params: dict, timeStr):
@@ -203,7 +203,7 @@ class TiShiNengSdkPublic:
     async def _oauth_request(self, params: dict, context: str) -> dict:
         result = await self.core.send(
             'POST',
-            tsn_routes.route('oauthToken'),
+            routes.route('oauthToken'),
             params=params,          # 必须是 query string
             headers=self._oauth_headers(),
             context=context,
@@ -258,49 +258,49 @@ class TiShiNengSdkPublic:
 
     # ---- 业务接口（只读） -------------------------------------------
     async def getAppid(self):
-        return await self.httpGet(tsn_routes.route('getAppid'), {})
+        return await self.httpGet(routes.route('getAppid'), {})
 
     async def listMenu(self, location=1):
-        return await self.httpGet(tsn_routes.route('listMenu'), {'location': str(location)})
+        return await self.httpGet(routes.route('listMenu'), {'location': str(location)})
 
     async def messageArticleListByType(self, mtype=4):
-        return await self.httpGet(tsn_routes.route('messageArticleListByType'), {'type': str(mtype)})
+        return await self.httpGet(routes.route('messageArticleListByType'), {'type': str(mtype)})
 
     async def getLatestUnreadNotice(self):
-        return await self.httpGet(tsn_routes.route('latestUnreadNotice'), {})
+        return await self.httpGet(routes.route('latestUnreadNotice'), {})
 
     async def isDefalutPass(self):
-        return await self.httpGet(tsn_routes.route('isDefaultPass'), {})
+        return await self.httpGet(routes.route('isDefaultPass'), {})
 
     async def sumExerciseRecord(self):
-        return await self.httpGet(tsn_routes.route('sumExerciseRecord'), {})
+        return await self.httpGet(routes.route('sumExerciseRecord'), {})
 
     async def getFeedbackBalance(self):
-        return await self.httpGet(tsn_routes.route('getFeedbackBalance'), {})
+        return await self.httpGet(routes.route('getFeedbackBalance'), {})
 
     async def statisticsExerciseRecord(self):
-        return await self.httpGet(tsn_routes.route('statisticsExerciseRecord'), {})
+        return await self.httpGet(routes.route('statisticsExerciseRecord'), {})
 
     async def getExerciseStartTime(self, identify):
-        return await self.httpGet(tsn_routes.route('getExerciseStartTime'), {'identify': identify})
+        return await self.httpGet(routes.route('getExerciseStartTime'), {'identify': identify})
 
     async def getExerciseRecord(self, exerciseRecordId):
-        return await self.httpGet(tsn_routes.route('getExerciseRecord'), {'exerciseRecordId': exerciseRecordId})
+        return await self.httpGet(routes.route('getExerciseRecord'), {'exerciseRecordId': exerciseRecordId})
 
     async def getExerciseExplanation(self):
-        return await self.httpGet(tsn_routes.route('getExerciseExplanation'), {})
+        return await self.httpGet(routes.route('getExerciseExplanation'), {})
 
     async def getLoginUserInfo(self):
-        return await self.httpGet(tsn_routes.route('getLoginUserInfo'), {})
+        return await self.httpGet(routes.route('getLoginUserInfo'), {})
 
     async def listExerciseRecord(self, runStatus=1, date='', datePageIndex=1):
-        return await self.httpGet(tsn_routes.route('listExerciseRecord'), {'status': runStatus, 'date': date, 'datePageIndex': datePageIndex})
+        return await self.httpGet(routes.route('listExerciseRecord'), {'status': runStatus, 'date': date, 'datePageIndex': datePageIndex})
 
     async def getAppSocketServer(self):
-        return await self.httpGet(tsn_routes.route('getAppSocketServer'), {'basUserId': self.uid})
+        return await self.httpGet(routes.route('getAppSocketServer'), {'basUserId': self.uid})
 
     async def listBasUserImageFace(self):
-        return await self.httpGet(tsn_routes.route('listBasUserImageFace'), {'basUserId': self.uid})
+        return await self.httpGet(routes.route('listBasUserImageFace'), {'basUserId': self.uid})
 
     # ---- 业务接口（加密） -------------------------------------------
     def _new_random_aes(self, timestamp: str):
@@ -313,7 +313,7 @@ class TiShiNengSdkPublic:
         timestamp = str(int(time.time() * 1000))
         randomAesUtils, aesKey = self._new_random_aes(timestamp)
         encParams = self.getEncParams(randomAesUtils, aesKey, params)
-        data = await self.httpGet(tsn_routes.route('getExerciseSetting'), encParams, timestamp)
+        data = await self.httpGet(routes.route('getExerciseSetting'), encParams, timestamp)
         return json.loads(randomAesUtils.decrypt(data))
 
     async def addExerciseRecord(self, sportType, startTime, endTime, sportTime, sportRange, speed, avgSpeed, gitudeLatitude, stepNumbers, isSequencePoint, pointList, okPointList, isFaceStatus, uploadType, identify, geofence, limitSpeed, limitStride, limitStepFrequency, gpsDistance, *, d=None, f=None, m=None, h=None, isValid=None, remarkId=None, setting=None, trackPoints=None, stepCount=None, elapsedSeconds=None, distanceMeters=None, userOpenDevelop=False, offline=0, environment=None):
@@ -322,7 +322,7 @@ class TiShiNengSdkPublic:
         point_dicts = self._parse_track_points(trackPoints if trackPoints is not None else gitudeLatitude)
         extras: Dict[str, Any]
         if setting is not None:
-            extras = tsn_submit.build_submit_extras(
+            extras = submit.build_submit_extras(
                 setting,
                 points=point_dicts,
                 elapsed_s=float(elapsedSeconds if elapsedSeconds is not None else sportTime),
@@ -333,7 +333,7 @@ class TiShiNengSdkPublic:
                 include_is_valid=isValid is None,
             )
         else:
-            extras = tsn_submit.aggregate_risk_flags(point_dicts, user_open_develop=userOpenDevelop, offline=offline)
+            extras = submit.aggregate_risk_flags(point_dicts, user_open_develop=userOpenDevelop, offline=offline)
         for key, value in (('d', d), ('f', f), ('m', m), ('h', h)):
             if value is not None:
                 extras[key] = int(value)
@@ -365,7 +365,7 @@ class TiShiNengSdkPublic:
         timestamp = str(int(time.time() * 1000))
         randomAesUtils, aesKey = self._new_random_aes(timestamp)
         encParams = self.getEncParams(randomAesUtils, aesKey, params, True)
-        encResp, exerciseRecordId = await self.httpPost(tsn_routes.route('addExerciseRecord'), encParams, timestamp, return_meta=True)
+        encResp, exerciseRecordId = await self.httpPost(routes.route('addExerciseRecord'), encParams, timestamp, return_meta=True)
         logger.info(
             'addExerciseRecord -> id={} flags={{d:{},f:{},m:{},h:{}}} isValid={} remarkId={}',
             exerciseRecordId, data['d'], data['f'], data['m'], data['h'],
@@ -393,7 +393,7 @@ class TiShiNengSdkPublic:
             data = dict(self._environmentOverride)
             data.setdefault('deviceId', self.deviceId)
             return data
-        return tsn_env.build_environment_payload(device_id=self.deviceId, signals=self._envSignals, abis=self.a_list)
+        return env.build_environment_payload(device_id=self.deviceId, signals=self._envSignals, abis=self.a_list)
 
     async def exerciseRunningFace(self, faceBytes: bytes, coordinates, identify, runType=1, faceType=1):
         timestamp = str(int(time.time() * 1000))
@@ -411,7 +411,7 @@ class TiShiNengSdkPublic:
         # 否则宝塔 WAF 会以 "from-data 请求异常" 拦截较长的加密参数。
         result = await self.core.send(
             'POST',
-            tsn_routes.route('exerciseRunningFace'),
+            routes.route('exerciseRunningFace'),
             data={'key': key, 'param': param},
             files={'file': ('file.jpg', io.BytesIO(faceBytes), 'image/jpeg')},
             headers=headers,

@@ -10,13 +10,13 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-import tsn_fields  # noqa: E402
+from tsn import fields  # noqa: E402
 
 
 def main() -> int:
     target = ROOT / 'docs' / '字段对照.md'
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(tsn_fields.to_markdown(), encoding='utf-8', newline='\n')
+    target.write_text(fields.to_markdown(), encoding='utf-8', newline='\n')
     print(f'wrote {target}')
     return 0
 

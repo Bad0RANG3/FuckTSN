@@ -7,14 +7,14 @@ import httpx
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from TiShiNengSdkPrivate import TiShiNengPrivate
-from database import get_db, init_db
-from models import TsnAccount_Model
-from tsn_dao import getSchoolListDao, addOrUpdateSchool
-from tsnClient import tsnPasswordAuthServer, getTsnClientById
-from tsnRunServer import TsnRunServer, TsnRunType
-from spiderServer import startSpider
-from validCountServer import crawl_valid_count_for_account
+from sdk.private import TiShiNengPrivate
+from app.database import get_db, init_db
+from app.models import TsnAccount_Model
+from tsn.dao import getSchoolListDao, addOrUpdateSchool
+from sdk.client import tsnPasswordAuthServer, getTsnClientById
+from sdk.runserver import TsnRunServer, TsnRunType
+from sdk.spider import startSpider
+from sdk.validcount import crawl_valid_count_for_account
 
 def getClient():
     tsn = TiShiNengPrivate(1, 1, '', False, str(uuid.uuid4()), 'Xiaomi', '25053RT47C', '')
@@ -351,7 +351,7 @@ class TsnCliManager:
                     run_server = TsnRunServer(accountId=selected_account.id, runKiloMeter=2.0, logRunType=TsnRunType.freedom)
                     run_server.accountModel = selected_account
                     run_server.tsnClient = await getTsnClientById(selected_account.id, db)
-                    run_server.isPublic = run_server.tsnClient.isPublic()
+                    run_server.isPublic = run_server.client.isPublic()
                     face_image_data = await run_server.getFaceImage()
                     if face_image_data:
                         print('\n✅ 人脸图片更新完成！')

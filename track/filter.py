@@ -16,8 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Tuple
 
-from tsn_geo import CoordinateSystem, WGS84, haversine_distance, normalize_points
-from tsn_log import logger
+from tsn.geo import CoordinateSystem, WGS84, haversine_distance, normalize_points
+from tsn.log import logger
 
 
 class InsufficientTrackError(ValueError):

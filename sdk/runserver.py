@@ -13,18 +13,18 @@ import httpx
 from PIL import Image
 from loguru import logger
 from sqlalchemy import select, func
-from TiShiNengError import ErrorCode, TiShiNengError
-from TiShiNengRunPathManage import genTiShiNengRunPathRepeat
-from database import get_db
-from deviceModel import deviceModel
-from models import TsnAccount_Model, RunPath
-from tsn_dao import getTsnAccountByid
-from tsnClient import getTsnClientById
-import tsn_env
-import tsn_face_plan
-import tsn_face_store
-import compliance
-import tsn_submit
+from sdk.errors import ErrorCode, TiShiNengError
+from sdk.runpath import genTiShiNengRunPathRepeat
+from app.database import get_db
+from app.device import deviceModel
+from app.models import TsnAccount_Model, RunPath
+from tsn.dao import getTsnAccountByid
+from sdk.client import getTsnClientById
+from tsn import env
+from tsn import face_plan
+from tsn import face_store
+from tsn import compliance
+from tsn import submit
 
 # 服务端时间戳按学校所在时区渲染；容器里 TZ=UTC 时不能让本地时间整体偏 8 小时。
 # Windows 默认不带 IANA 时区库（缺 tzdata），退化为固定 +08:00。
@@ -118,15 +118,15 @@ class TsnRunServer:
             return image_bytes
 
     async def getFaceImage(self):
-        face_dir = tsn_face_store.build_face_dir('face_images', self.accountModel.school_id, self.accountModel.user_id)
-        existing_images = tsn_face_store.list_images(face_dir)
+        face_dir = face_store.build_face_dir('face_images', self.accountModel.school_id, self.accountModel.user_id)
+        existing_images = face_store.list_images(face_dir)
         if existing_images:
             selected_image = random.choice(existing_images)
             logger.info('使用本地人脸图片: {}', selected_image)
             return selected_image.read_bytes()
 
         logger.info('本地没有人脸图片，从服务器获取...')
-        face_list_resp = await self.tsnClient.listBasUserImageFace()
+        face_list_resp = await self.client.listBasUserImageFace()
         if not face_list_resp:
             raise TiShiNengError('获取人脸列表失败，请检查网络连接或账号状态', ErrorCode.FACE_LIST_FAILED)
         if len(face_list_resp) == 0:
@@ -139,13 +139,13 @@ class TsnRunServer:
                 if not image_url:
                     continue
                 try:
-                    safe_url = tsn_face_store.validate_image_url(image_url)
+                    safe_url = face_store.validate_image_url(image_url)
                     logger.info('下载人脸图片 {}/{}', idx + 1, len(face_list_resp))
                     resp = await client.get(safe_url, timeout=30.0)
                     if resp.status_code != 200:
                         logger.warning('人脸图片下载失败，状态码 {}', resp.status_code)
                         continue
-                    path = tsn_face_store.store_image(face_dir, face_item.get('id', f'face_{idx}'), resp.content)
+                    path = face_store.store_image(face_dir, face_item.get('id', f'face_{idx}'), resp.content)
                     logger.info('人脸图片已保存: {}', path)
                     download_count += 1
                 except TiShiNengError as e:
@@ -154,7 +154,7 @@ class TsnRunServer:
                     logger.error('下载人脸图片失败: {}', type(e).__name__)
                 continue
 
-        existing_images = tsn_face_store.list_images(face_dir)
+        existing_images = face_store.list_images(face_dir)
         if not existing_images:
             raise TiShiNengError(f'人脸图片下载失败，尝试下载 {len(face_list_resp)} 张但都失败了，请检查网络连接', ErrorCode.FACE_DOWNLOAD_FAILED)
         selected_image = random.choice(existing_images)
@@ -168,11 +168,11 @@ class TsnRunServer:
             await asyncio.sleep(sleep)
         original_image = await self.getFaceImage()
         modified_image = self.add_random_pixels_to_image(original_image)
-        await self.tsnClient.exerciseRunningFace(modified_image, coordinates, self.identify, self.publicRunTypeConvert(self.logRunType), faceType)
+        await self.client.exerciseRunningFace(modified_image, coordinates, self.identify, self.publicRunTypeConvert(self.logRunType), faceType)
         self.faceUploaded = True
 
     async def queryPath(self):
-        resultStmt = select(RunPath).where(RunPath.school_code == self.tsnClient.schoolCode).order_by(func.abs(RunPath.sport_range - self.runKiloMeter)).limit(10)
+        resultStmt = select(RunPath).where(RunPath.school_code == self.client.schoolCode).order_by(func.abs(RunPath.sport_range - self.runKiloMeter)).limit(10)
         async for newDb in get_db():
             result = await newDb.execute(resultStmt)
             runPathList = result.scalars().all()
@@ -199,7 +199,7 @@ class TsnRunServer:
         return okPointList
 
     def buildMiddleFacePoints(self, path, startTime, endTime):
-        points = tsn_face_plan.build_middle_face_points(path=path, start_timestamp_ms=int(startTime), end_timestamp_ms=int(endTime), middle_faces=self.middleFaces, is_public=bool(self.isPublic), face_type=2)
+        points = face_plan.build_middle_face_points(path=path, start_timestamp_ms=int(startTime), end_timestamp_ms=int(endTime), middle_faces=self.middleFaces, is_public=bool(self.isPublic), face_type=2)
         result = [point.as_dict() for point in points]
         logger.info(f'中途人脸验证点: {result}')
         return result
@@ -264,9 +264,9 @@ class TsnRunServer:
         if self.isPublic:
             total_steps = sum((int(n) for n in stepNumbers))
             setting = self.exerciseSetting or {}
-            submit_extras = tsn_submit.build_submit_extras(setting=setting, points=path, elapsed_s=usedTime, distance_m=sumDistance, steps=total_steps, user_open_develop=setting.get('userOpenDevelop', False), offline=0)
+            submit_extras = submit.build_submit_extras(setting=setting, points=path, elapsed_s=usedTime, distance_m=sumDistance, steps=total_steps, user_open_develop=setting.get('userOpenDevelop', False), offline=0)
             logger.info(f'{deviceModel.app_version} 提交字段: {submit_extras}')
-            logger.info(f'合格性判定明细: {tsn_submit.qualification_detail(setting, usedTime, sumDistance, total_steps)}')
+            logger.info(f'合格性判定明细: {submit.qualification_detail(setting, usedTime, sumDistance, total_steps)}')
             faceRequired = bool(getattr(self, 'middleFaces', None)) or getattr(self, 'isStartFace', 0) == 1 or getattr(self, 'isEndFace', 0) == 1 or getattr(self, 'isMidwayFace', 0) == 1
             gate_meta = {
                 'sport_range_km': round(sumDistance / 1000, 2),
@@ -283,11 +283,11 @@ class TsnRunServer:
                 'system': (getattr(self.tsnClient, 'v2BaseDict', {}) or {}).get('system', ''),
                 'osver': getattr(self.tsnClient, 'AndroidOsVersion', ''),
                 # 单次要求 = rangeSetting（公有接口的 totalRange 是阶段累计，不能当门槛）
-                'required_range_m': tsn_submit.per_run_range_meters(setting),
-                'range_setting': tsn_submit.per_run_range_meters(setting) / 1000.0,
+                'required_range_m': submit.per_run_range_meters(setting),
+                'range_setting': submit.per_run_range_meters(setting) / 1000.0,
                 'step_setting': setting.get('stepSetting') or setting.get('step'),
                 'start_qualified_min': setting.get('startQualifiedTime'),
-                'end_qualified_min': tsn_submit.adaptive_end_qualified_time(setting, sumDistance),
+                'end_qualified_min': submit.adaptive_end_qualified_time(setting, sumDistance),
                 'ok_point_count': len(okPointList),
                 'point_count': len(path),
                 'sport_type': self.publicRunTypeConvert(self.logRunType),
@@ -300,12 +300,12 @@ class TsnRunServer:
             for issue in gate_report.issues:
                 logger.warning(f'  [{issue.severity}] {issue.code}: {issue.message}')
             gate_report.raise_if_failed()
-            stopResp, exerciseRecordId = await self.tsnClient.addExerciseRecord(sportType=self.publicRunTypeConvert(self.logRunType), startTime=self.start_timestamp, endTime=endTime, sportTime=usedTime, sportRange=sportRange, speed=pace, avgSpeed=str(avgSpeed), gitudeLatitude=json.dumps(path), stepNumbers=json.dumps(stepNumbers), isSequencePoint='0', pointList=json.dumps(pointList, ensure_ascii=False), okPointList=json.dumps(okPointList, ensure_ascii=False), isFaceStatus=self.isFaceStatus, uploadType=0, identify=self.identify, geofence=json.dumps(self.geofence), limitSpeed=self.limitSpeed, limitStride=self.endStride, limitStepFrequency=self.endLimitStepFrequency, gpsDistance=gpsDistance, d=submit_extras.get('d'), f=submit_extras.get('f'), m=submit_extras.get('m'), h=submit_extras.get('h'), isValid=submit_extras.get('isValid'), remarkId=submit_extras.get('remarkId'), setting=setting, trackPoints=path, stepCount=total_steps, elapsedSeconds=usedTime, distanceMeters=sumDistance)
-            await self.tsnClient.sumExerciseRecord()
+            stopResp, exerciseRecordId = await self.client.addExerciseRecord(sportType=self.publicRunTypeConvert(self.logRunType), startTime=self.start_timestamp, endTime=endTime, sportTime=usedTime, sportRange=sportRange, speed=pace, avgSpeed=str(avgSpeed), gitudeLatitude=json.dumps(path), stepNumbers=json.dumps(stepNumbers), isSequencePoint='0', pointList=json.dumps(pointList, ensure_ascii=False), okPointList=json.dumps(okPointList, ensure_ascii=False), isFaceStatus=self.isFaceStatus, uploadType=0, identify=self.identify, geofence=json.dumps(self.geofence), limitSpeed=self.limitSpeed, limitStride=self.endStride, limitStepFrequency=self.endLimitStepFrequency, gpsDistance=gpsDistance, d=submit_extras.get('d'), f=submit_extras.get('f'), m=submit_extras.get('m'), h=submit_extras.get('h'), isValid=submit_extras.get('isValid'), remarkId=submit_extras.get('remarkId'), setting=setting, trackPoints=path, stepCount=total_steps, elapsedSeconds=usedTime, distanceMeters=sumDistance)
+            await self.client.sumExerciseRecord()
             logger.info(stopResp)
             logger.info(exerciseRecordId)
             if exerciseRecordId is not None:
-                exerciseRecordResp = await self.tsnClient.getExerciseRecord(exerciseRecordId)
+                exerciseRecordResp = await self.client.getExerciseRecord(exerciseRecordId)
                 if not isinstance(exerciseRecordResp, dict):
                     logger.warning('记录已提交但回读失败（id={}），无法判断是否合格', exerciseRecordId)
                 else:
@@ -314,16 +314,16 @@ class TsnRunServer:
                     if str(exerciseRecordResp.get('sportStatus')) != '1':
                         raise TiShiNengError(remark or '记录未通过判定', 200000)
                     compliance.record_success(gate_meta)
-                await self.tsnClient.getFeedbackBalance()
-                await self.tsnClient.sumExerciseRecord()
-                await self.tsnClient.statisticsExerciseRecord()
+                await self.client.getFeedbackBalance()
+                await self.client.sumExerciseRecord()
+                await self.client.statisticsExerciseRecord()
         else:
             formatSportTime = seconds_to_time_format(usedTime)
-            stopResp = await self.tsnClient.appAddSportRecord(runType=self.logRunType.value, startTime=self.start_timestamp, endTime=endTime, gitudeLatitude=json.dumps(path), identify=self.identify, formatSportTime=formatSportTime, formatSportRange=sportRange, avgspeed=str(avgSpeed), speed=pace, okPointList=json.dumps(okPointList), stepNumbers=json.dumps(stepNumbers), isFaceStatus=self.privateFaceStatus, points=json.dumps(self.pointList), uploadType=0)
+            stopResp = await self.client.appAddSportRecord(runType=self.logRunType.value, startTime=self.start_timestamp, endTime=endTime, gitudeLatitude=json.dumps(path), identify=self.identify, formatSportTime=formatSportTime, formatSportRange=sportRange, avgspeed=str(avgSpeed), speed=pace, okPointList=json.dumps(okPointList), stepNumbers=json.dumps(stepNumbers), isFaceStatus=self.privateFaceStatus, points=json.dumps(self.pointList), uploadType=0)
             logger.info(stopResp)
-            sportRecord = await self.tsnClient.sumSportRecord()
+            sportRecord = await self.client.sumSportRecord()
             await asyncio.sleep(5)
-            appSportRecordList = await self.tsnClient.appSportRecordList()
+            appSportRecordList = await self.client.appSportRecordList()
             rows = (appSportRecordList or {}).get('data') or []
             if not rows:
                 logger.warning('私有版记录已提交但列表回读为空，无法判断是否合格')
@@ -337,10 +337,10 @@ class TsnRunServer:
         async for newDb in get_db():
             self.accountModel = await getTsnAccountByid(self.accountId, newDb)
             self.tsnClient = await getTsnClientById(self.accountModel.id, newDb)
-        self.isPublic = self.tsnClient.isPublic()
+        self.isPublic = self.client.isPublic()
         canRunTypeList = []
         if self.isPublic:
-            initSumRunResp = await self.tsnClient.sumExerciseRecord()
+            initSumRunResp = await self.client.sumExerciseRecord()
             if initSumRunResp['morningRun']['isShow'] == '1':
                 canRunTypeList.append(TsnRunType.morningRun)
             if initSumRunResp['sunRun']['isShow'] == '1':
@@ -348,7 +348,7 @@ class TsnRunServer:
             if initSumRunResp['freedomRun']['isShow'] == '1':
                 canRunTypeList.append(TsnRunType.freedom)
         else:
-            initSettingResp = await self.tsnClient.sportRecordSetting()
+            initSettingResp = await self.client.sportRecordSetting()
             freedom = initSettingResp['freedom']
             sunRun = initSettingResp['sunRun']
             morningRun = initSettingResp['morningRun']
@@ -373,19 +373,19 @@ class TsnRunServer:
                 longitude, latitude = self._randomize_coordinates(longitude, latitude)
             self.startLongitude = longitude
             self.startLatitude = latitude
-            self.exerciseSetting = await self.tsnClient.getExerciseSetting(self.publicRunTypeConvert(self.logRunType), longitude, latitude)
-            logger.info(f'school{self.tsnClient.schoolId} setting Info:{self.exerciseSetting}')
-            await self.tsnClient.getExerciseExplanation()
+            self.exerciseSetting = await self.client.getExerciseSetting(self.publicRunTypeConvert(self.logRunType), longitude, latitude)
+            logger.info(f'school{self.client.schoolId} setting Info:{self.exerciseSetting}')
+            await self.client.getExerciseExplanation()
         else:
-            self.exerciseSetting = await self.tsnClient.getSportSetting(self.logRunType.value)
+            self.exerciseSetting = await self.client.getSportSetting(self.logRunType.value)
         if self.identify is None or self.start_timestamp is None:
             self.identify = self.exerciseSetting['identify']
             if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', str(self.identify or '')):
                 logger.warning(f'identify 不是标准 UUID，服务端极易判定数据异常: {self.identify!r}')
             if self.isPublic:
-                startTimeResp = await self.tsnClient.getExerciseStartTime(self.identify)
+                startTimeResp = await self.client.getExerciseStartTime(self.identify)
             else:
-                startTimeResp = await self.tsnClient.getRunningStartTime(self.identify)
+                startTimeResp = await self.client.getRunningStartTime(self.identify)
             self.start_timestamp = int(startTimeResp['startTime']) + random.randint(14, 20) * 1000
         self.isStartFace = int(self.exerciseSetting.get('isStartFace', 0))
         self.isEndFace = int(self.exerciseSetting.get('isEndFace', 0))
@@ -396,7 +396,7 @@ class TsnRunServer:
         if not (len(self.middleFaces) > 0 or self.isStartFace == 1 or self.isEndFace == 1 or (self.isMidwayFace == 1)):
             self.isFaceStatus = 0
         if hasattr(self.tsnClient, 'setEnvSignals'):
-            self.tsnClient.setEnvSignals(tsn_env.clean_device_signals())
+            self.client.setEnvSignals(env.clean_device_signals())
         if self.isStartFace == 1:
             logger.info('开始人脸识别')
             coordinates = f'{self.startLatitude},{self.startLongitude}'
@@ -411,7 +411,7 @@ class TsnRunServer:
             campusIdPointDict = {}
             for campus in campusList:
                 campusIdPointDict[campus['id']] = campus['point']
-            userInfo = await self.tsnClient.getLoginUserInfo()
+            userInfo = await self.client.getLoginUserInfo()
             campusId = userInfo['campusId']
             if campusId in campusIdPointDict:
                 self.pointList = campusIdPointDict[campusId]

@@ -29,14 +29,14 @@ import json
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if hasattr(sys.stdout, 'buffer') and not getattr(sys.stdout, '_utf8_wrapped', False):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
     sys.stdout._utf8_wrapped = sys.stderr._utf8_wrapped = True
 
-import backfill  # noqa: E402
-import config  # noqa: E402
+from app import backfill  # noqa: E402
+from app import config  # noqa: E402
 
 NEED = 20  # 阳光跑学期要求（sumExerciseRecord.validitySunRun 实测 = 20）
 

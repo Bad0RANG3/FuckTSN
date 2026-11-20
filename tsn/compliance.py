@@ -42,7 +42,7 @@ import re
 from dataclasses import dataclass, field as _field
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-import tsn_geo
+from tsn import geo
 
 # --------------------------------------------------------------------------- #
 # 分级与模式
@@ -196,7 +196,7 @@ class ComplianceReport:
 # --------------------------------------------------------------------------- #
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    return tsn_geo.haversine_distance(lat1, lon1, lat2, lon2)
+    return geo.haversine_distance(lat1, lon1, lat2, lon2)
 
 
 def _point_lat_lon(point: Dict[str, Any]) -> tuple:

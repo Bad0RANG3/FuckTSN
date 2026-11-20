@@ -3,7 +3,7 @@ import math
 import random
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
-from tsn_geo import haversine_distance
+from tsn.geo import haversine_distance
 # 真实人类慢跑生理参数（2.1 km / 6'30"-7'30" / km）
 # 步幅在 2.40 m/s（6'56"/km）附近约 0.86 m，随速度线性增长；步频由 60*v/stride 推出并夹在 150-190 spm
 STRIDE_BASE_M = 0.86

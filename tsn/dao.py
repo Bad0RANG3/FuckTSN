@@ -16,7 +16,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
 
-from models import TsnAccount_Model, TsnSchool_Model
+from app.models import TsnAccount_Model, TsnSchool_Model
 
 
 # ---------------------------------------------------------------------------

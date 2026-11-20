@@ -8,7 +8,7 @@
   比例会被夹到 [0.05, 1.2]；相邻两张之间至少间隔 5 秒，太密会被平台判成
   重复上传同一张。
 - 人脸接口本身是 multipart：identify/type/runType/coordinates/timeStamp/
-  exception/environment + 一个 file 分段（见 TiShiNengSdkPublic.exerciseRunningFace）。
+  exception/environment + 一个 file 分段（见 public.exerciseRunningFace）。
 
 本模块只负责"该在哪一秒、哪个坐标拍这张脸"，不碰网络。
 """

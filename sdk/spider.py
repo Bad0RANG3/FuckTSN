@@ -1,12 +1,12 @@
 import json
 from loguru import logger
 from sqlalchemy import select, func
-from TiShiNengSdkPrivate import TiShiNengPrivate
-from TiShiNengSdkPublic import TiShiNengSdkPublic
-from database import get_db
-from models import RunPath, TsnRunRecord_Model
-from tsnClient import getTsnClientById
-from TiShiNengRunPathManage import getPointListDistance
+from sdk.private import TiShiNengPrivate
+from sdk.public import TiShiNengSdkPublic
+from app.database import get_db
+from app.models import RunPath, TsnRunRecord_Model
+from sdk.client import getTsnClientById
+from sdk.runpath import getPointListDistance
 
 async def AddDateBase(runPathId, runLineList, sportRange, pointIdList, okPointListJson, schoolCode, isPublic=True):
     async for db in get_db():
@@ -78,13 +78,13 @@ async def startSpider(accountId: int) -> None:
     tsnClient: TiShiNengPrivate | TiShiNengSdkPublic | None = None
     async for newDb in get_db():
         tsnClient = await getTsnClientById(accountId, newDb)
-    if tsnClient.isPublic():
-        baseRecord = await tsnClient.listExerciseRecord(1, '', 1)
+    if client.isPublic():
+        baseRecord = await client.listExerciseRecord(1, '', 1)
         dates = baseRecord['dates']
         for date in dates:
             recodeIdList = []
             for pageIndex in range(1, 10):
-                recodeList = await tsnClient.listExerciseRecord(1, date['date'], pageIndex)
+                recodeList = await client.listExerciseRecord(1, date['date'], pageIndex)
                 breakFlag = False
                 for i in recodeList['records']:
                     if i['id'] in recodeIdList:
@@ -96,15 +96,15 @@ async def startSpider(accountId: int) -> None:
                     break
             logger.info(recodeIdList)
             for i in recodeIdList:
-                rawRecord = await tsnClient.getExerciseRecord(i)
-                await AddRunRecord(i, tsnClient.schoolCode, rawRecord.get('sportType'), rawRecord)
+                rawRecord = await client.getExerciseRecord(i)
+                await AddRunRecord(i, client.schoolCode, rawRecord.get('sportType'), rawRecord)
                 if rawRecord['sportType'] != '0' and int(rawRecord['step']) >= 500:
-                    logger.info(f' {tsnClient.schoolCode} {rawRecord}')
-                    await processRawAndAddDateBase(tsnClient.schoolCode, rawRecord)
+                    logger.info(f' {client.schoolCode} {rawRecord}')
+                    await processRawAndAddDateBase(client.schoolCode, rawRecord)
     else:
         recodeIdList = []
         for pageIndex in range(1, 10):
-            resp = await tsnClient.appSportRecordList(2, pageIndex, 10)
+            resp = await client.appSportRecordList(2, pageIndex, 10)
             if 'data' not in resp:
                 break
             breakFlag = False
@@ -119,6 +119,6 @@ async def startSpider(accountId: int) -> None:
             if breakFlag:
                 break
         for i in recodeIdList:
-            rawRecord = await tsnClient.getSportRecordId(i)
+            rawRecord = await client.getSportRecordId(i)
             if int(rawRecord['sportStatus']) == 1 and sum(rawRecord['stepNumbers']) >= 500:
-                await processRawAndAddDateBase(tsnClient.schoolCode, rawRecord, isPublic=False)
+                await processRawAndAddDateBase(client.schoolCode, rawRecord, isPublic=False)

@@ -18,8 +18,8 @@ import os
 import httpx
 from loguru import logger
 
-import tsn_protocol
-import tsn_routes
+from tsn import protocol
+from tsn import routes
 
 DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=20.0)
 _IDEMPOTENT_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
@@ -52,13 +52,13 @@ class TsnHttpCore:
 
     # ---- 配置 -------------------------------------------------------
     def set_base_url(self, base_url: str) -> None:
-        self.base_url = tsn_routes.normalize_base_url(base_url)
+        self.base_url = routes.normalize_base_url(base_url)
 
     def set_token(self, token: str) -> None:
         self.token = token
 
     def build_url(self, path: str) -> str:
-        return tsn_routes.join_url(self.base_url, path)
+        return routes.join_url(self.base_url, path)
 
     # ---- 请求 -------------------------------------------------------
     async def send(
@@ -73,7 +73,7 @@ class TsnHttpCore:
         timeout: float | httpx.Timeout | None = None,
         context: str = '',
         allow_protocol_retry: bool | None = None,
-    ) -> tsn_protocol.TsnResult:
+    ) -> protocol.TsnResult:
         method = method.upper()
         full_url = self.build_url(url)
         merged = {**self.headers, **(headers or {})}
@@ -83,7 +83,7 @@ class TsnHttpCore:
             allow_protocol_retry = method in _IDEMPOTENT_METHODS or method == 'POST'
         attempts = 1 + (self.protocol_retries if allow_protocol_retry else 0)
 
-        result: tsn_protocol.TsnResult | None = None
+        result: protocol.TsnResult | None = None
         for attempt in range(attempts):
             try:
                 resp = await self.client.request(
@@ -96,15 +96,15 @@ class TsnHttpCore:
                     timeout=timeout,
                 )
             except httpx.HTTPError as exc:
-                result = tsn_protocol.classify_exception(exc, context=context)
+                result = protocol.classify_exception(exc, context=context)
                 if result.retryable and attempt + 1 < attempts:
                     await self._sleep(attempt)
                     continue
                 return result
             except Exception as exc:  # 非 httpx 异常（编码/参数错误）不重试
-                return tsn_protocol.classify_exception(exc, context=context)
+                return protocol.classify_exception(exc, context=context)
 
-            result = tsn_protocol.classify_response(resp, context=context)
+            result = protocol.classify_response(resp, context=context)
             if not result.retryable or attempt + 1 >= attempts:
                 break
             logger.warning(

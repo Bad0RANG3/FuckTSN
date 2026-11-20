@@ -16,8 +16,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-from tsn_buckets import BucketAllocation
-from tsn_geo import haversine_distance
+from tsn.buckets import BucketAllocation
+from tsn.geo import haversine_distance
 
 
 @dataclass

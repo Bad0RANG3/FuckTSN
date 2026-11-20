@@ -4,7 +4,7 @@ import unittest
 
 import httpx
 
-from tsn_protocol import ResultKind, classify_response, redact, should_retry
+from tsn.protocol import ResultKind, classify_response, redact, should_retry
 
 
 def _resp(status=200, body=None, text=None, headers=None):

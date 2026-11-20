@@ -12,7 +12,7 @@ import pathlib
 
 import pytest
 
-import tsn_fields
+from tsn import fields
 
 FIXTURES = pathlib.Path(__file__).parent / 'fixtures'
 
@@ -39,7 +39,7 @@ def _legacy_submit():
 
 def test_qualified_records_pass_point_audit():
     for record in _qualified():
-        issues = tsn_fields.audit_points(record['gitudeLatitude'])
+        issues = fields.audit_points(record['gitudeLatitude'])
         errors = [i for i in issues if i.level == 'error']
         assert not errors, f"{record['id']}: {[e.message for e in errors]}"
 
@@ -49,7 +49,7 @@ def test_qualified_records_point_shape():
     for record in _qualified():
         points = record['gitudeLatitude']
         total += len(points)
-        assert all(set(p) == set(tsn_fields.POINT_KEYS_NEW) for p in points)
+        assert all(set(p) == set(fields.POINT_KEYS_NEW) for p in points)
         assert all(isinstance(v, str) for p in points for v in p.values())
         assert points[-1]['i'] == 'true'
         assert all(p['m'] == '0' for p in points)
@@ -83,7 +83,7 @@ def test_listview_identify_is_uuid_except_banned():
         if record['id'] == '9582671916210712292':
             assert record['identify'] == '1'
         else:
-            assert tsn_fields.UUID_RE.match(record['identify']), record['identify']
+            assert fields.UUID_RE.match(record['identify']), record['identify']
 
 
 def test_reach_range_equals_sport_range_only_when_counted():
@@ -133,25 +133,25 @@ def test_penalty_suffix_is_account_level():
 # ---------------------------------------------------------------------------
 
 def test_migrate_legacy_replaces_device_profile():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
-    for key, want in tsn_fields.NEW_DEVICE_PROFILE.items():
+    new = fields.migrate_legacy(_legacy_submit())
+    for key, want in fields.NEW_DEVICE_PROFILE.items():
         assert new[key] == want
 
 
 def test_migrate_legacy_fixes_identify_and_pace():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
-    assert tsn_fields.UUID_RE.match(new['identify'])
-    assert tsn_fields.PACE_RE.match(new['speed'])
+    new = fields.migrate_legacy(_legacy_submit())
+    assert fields.UUID_RE.match(new['identify'])
+    assert fields.PACE_RE.match(new['speed'])
     assert '\u2032' in new['speed'] and '\u2033' in new['speed']
 
 
 def test_migrate_legacy_keeps_identify_when_uuid():
     payload = dict(_legacy_submit(), identify='7dacd1d0-09fd-5306-82d5-9145dbd1d461')
-    assert tsn_fields.migrate_legacy(payload)['identify'] == '7dacd1d0-09fd-5306-82d5-9145dbd1d461'
+    assert fields.migrate_legacy(payload)['identify'] == '7dacd1d0-09fd-5306-82d5-9145dbd1d461'
 
 
 def test_migrate_legacy_relabels_types():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
+    new = fields.migrate_legacy(_legacy_submit())
     assert new['gpsDistance'] == new['sportRange']
     assert new['sportRange'] == '2.00'
     assert 'points' not in new and 'formatSportRange' not in new
@@ -159,9 +159,9 @@ def test_migrate_legacy_relabels_types():
 
 
 def test_migrate_legacy_points_become_nine_key_strings():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
+    new = fields.migrate_legacy(_legacy_submit())
     points = new['gitudeLatitude']
-    assert all(set(p) == set(tsn_fields.POINT_KEYS_NEW) for p in points)
+    assert all(set(p) == set(fields.POINT_KEYS_NEW) for p in points)
     assert all(isinstance(v, str) for p in points for v in p.values())
     assert points[0]['a'] == '39.994742'
     assert points[0]['s'] == '2.500000'
@@ -171,31 +171,31 @@ def test_migrate_legacy_points_become_nine_key_strings():
 
 
 def test_migrated_payload_has_no_error_except_environment():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
-    errors = [i for i in tsn_fields.audit_submission(new) if i.level == 'error']
+    new = fields.migrate_legacy(_legacy_submit())
+    errors = [i for i in fields.audit_submission(new) if i.level == 'error']
     assert [i.field for i in errors] == ['environment']
 
 
 def test_migrate_legacy_can_synthesize_environment():
-    new = tsn_fields.migrate_legacy(_legacy_submit(), device_id='DEVICE_FIXTURE')
+    new = fields.migrate_legacy(_legacy_submit(), device_id='DEVICE_FIXTURE')
     env = new['environment']
     assert env['deviceId'] == 'DEVICE_FIXTURE'
     json.loads(env['oppo'])
     json.loads(env['safe'])
-    assert tsn_fields.audit_submission(new) == []
+    assert fields.audit_submission(new) == []
 
 
 def test_migrate_legacy_steps_consistent():
-    new = tsn_fields.migrate_legacy(_legacy_submit())
+    new = fields.migrate_legacy(_legacy_submit())
     assert sum(json.loads(new['stepNumbers'])) == int(new['step'])
 
 
 def test_banned_scalars_are_flagged():
     banned = {k: v for k, v in _load('record_banned.json').items() if k != 'gitudeLatitude'}
     payload = dict(banned, environment={}, gitudeLatitude=[])
-    fields = {i.field for i in tsn_fields.audit_submission(payload) if i.level == 'error'}
-    assert {'appVersion', 'brand', 'model', 'system', 'version', 'identify'} <= fields
-    assert 'speed' in fields
+    errs = {i.field for i in fields.audit_submission(payload) if i.level == 'error'}
+    assert {'appVersion', 'brand', 'model', 'system', 'version', 'identify'} <= errs
+    assert 'speed' in errs
 
 
 # ---------------------------------------------------------------------------
@@ -203,9 +203,9 @@ def test_banned_scalars_are_flagged():
 # ---------------------------------------------------------------------------
 
 def test_field_table_covers_core_groups():
-    groups = {spec.group for spec in tsn_fields.ALL_FIELDS}
+    groups = {spec.group for spec in fields.ALL_FIELDS}
     assert groups == {'submit', 'v2base', 'header', 'point', 'echo', 'setting'}
-    names = {spec.name for spec in tsn_fields.ALL_FIELDS}
+    names = {spec.name for spec in fields.ALL_FIELDS}
     for required in ('sportRange', 'gpsDistance', 'identify', 'environment', 'stepNumbers',
                      'a', 'o', 't', 's', 'c', 'e', 'i', 'l', 'm',
                      'remark', 'sportStatus', 'reachRange', 'totalRange', 'stepSetting'):
@@ -213,15 +213,15 @@ def test_field_table_covers_core_groups():
 
 
 def test_every_field_has_action_and_evidence():
-    for spec in tsn_fields.ALL_FIELDS:
+    for spec in fields.ALL_FIELDS:
         assert spec.evidence in ('echo', 'probe', 'doc'), spec
         assert spec.action.strip(), spec
 
 
 def test_markdown_doc_is_generated_from_table():
-    text = tsn_fields.to_markdown()
+    text = fields.to_markdown()
     assert text.startswith('# 字段对照')
-    assert text.count('| `') >= len(tsn_fields.ALL_FIELDS)
+    assert text.count('| `') >= len(fields.ALL_FIELDS)
     for title in ('提交报文', 'v2 签名公共字段', '轨迹点', '服务器回显', '服务器设置'):
         assert title in text
 
@@ -231,9 +231,9 @@ def test_markdown_doc_is_generated_from_table():
 # ---------------------------------------------------------------------------
 
 def test_must_migrate_resolves_to_real_specs():
-    index = {(spec.group, spec.name): spec for spec in tsn_fields.ALL_FIELDS}
-    assert len(tsn_fields.MUST_MIGRATE) == len(set(tsn_fields.MUST_MIGRATE))
-    for key in tsn_fields.MUST_MIGRATE:
+    index = {(spec.group, spec.name): spec for spec in fields.ALL_FIELDS}
+    assert len(fields.MUST_MIGRATE) == len(set(fields.MUST_MIGRATE))
+    for key in fields.MUST_MIGRATE:
         assert key in index, f'MUST_MIGRATE 指向不存在的字段：{key}'
         spec = index[key]
         assert spec.old != spec.new, f'{key} 新旧写法一样，不该留在必改清单'
@@ -241,7 +241,7 @@ def test_must_migrate_resolves_to_real_specs():
 
 
 def test_must_migrate_covers_the_known_breaking_changes():
-    names = {name for _, name in tsn_fields.MUST_MIGRATE}
+    names = {name for _, name in fields.MUST_MIGRATE}
     for required in ('appVersion', 'identify', 'speed', 'sportRange', 'gpsDistance',
                      'geofence', 'environment', 'isFaceStatus', 'step', 'stepNumbers',
                      'brand', 'model', 'system', 'version',
@@ -250,20 +250,20 @@ def test_must_migrate_covers_the_known_breaking_changes():
 
 
 def test_must_migrate_excludes_harmless_fields():
-    names = {name for _, name in tsn_fields.MUST_MIGRATE}
+    names = {name for _, name in fields.MUST_MIGRATE}
     for harmless in ('token', 'signatureMD5', 'versionCode', 'uniqueCode', 'Cookie', 'school'):
         assert harmless not in names, harmless
 
 
 def test_markdown_starts_with_migration_checklist():
-    text = tsn_fields.to_markdown()
+    text = fields.to_markdown()
     head = text[:text.index('## 一')]
     assert '必须替换的字段' in head
-    assert f'共 {len(tsn_fields.MUST_MIGRATE)} 个' in head
+    assert f'共 {len(fields.MUST_MIGRATE)} 个' in head
     rows = [line for line in head.splitlines() if line.startswith('| `')]
-    assert len(rows) == len(tsn_fields.MUST_MIGRATE)
-    index = {(spec.group, spec.name): spec for spec in tsn_fields.ALL_FIELDS}
-    for (group, name), line in zip(tsn_fields.MUST_MIGRATE, rows):
+    assert len(rows) == len(fields.MUST_MIGRATE)
+    index = {(spec.group, spec.name): spec for spec in fields.ALL_FIELDS}
+    for (group, name), line in zip(fields.MUST_MIGRATE, rows):
         spec = index[(group, name)]
         assert line.startswith(f'| `{spec.name}` |')
         assert spec.action in line

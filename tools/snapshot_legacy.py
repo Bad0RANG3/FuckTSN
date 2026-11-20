@@ -32,7 +32,7 @@ from AesUtils import AESCrypto  # noqa: E402
 import step_buckets  # noqa: E402
 import track_clean  # noqa: E402
 import track_geo  # noqa: E402
-import track_resample  # noqa: E402
+from track import resample  # noqa: E402
 import track_validate  # noqa: E402
 import tsn_environment  # noqa: E402
 import tsn_face_schedule  # noqa: E402
@@ -82,12 +82,12 @@ SETTING = {
 
 def _track():
     rng = random.Random(20261120)
-    return track_resample.resample_track(
+    return resample.resample_track(
         points=SQUARE,
         need_distance_m=2090.0,
         start_timestamp_ms=1793020234000.0,
         plan_use_time_s=880.0,
-        options=track_resample.ResampleOptions(),
+        options=resample.ResampleOptions(),
         rng=rng,
         clean=True,
     )

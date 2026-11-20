@@ -10,9 +10,9 @@ import random
 import time
 import uuid
 
-import compliance
-from deviceModel import deviceModel
-from TiShiNengRunPathManage import genTiShiNengRunPathRepeat
+from tsn import compliance
+from app.device import deviceModel
+from sdk.runpath import genTiShiNengRunPathRepeat
 
 
 def synthetic_route(lat0: float = 30.0, lon0: float = 120.0) -> list:

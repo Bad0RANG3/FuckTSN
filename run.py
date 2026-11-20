@@ -47,16 +47,16 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-import tsn_routes
-from database import get_db, init_db
-from models import RunPath, TsnAccount_Model, TsnSchool_Model
-from tsn_dao import addOrUpdateSchool, getSchoolBySchoolId
-from tsn_dao import getTsnAccountByid
-from TiShiNengSdkPrivate import TiShiNengPrivate
-from tsnClient import getTsnClientById, tsnPasswordAuthServer
-from tsnRunServer import TsnRunServer, TsnRunType
-from spiderServer import startSpider
-from validCountServer import crawl_valid_count_for_account
+from tsn import routes
+from app.database import get_db, init_db
+from app.models import RunPath, TsnAccount_Model, TsnSchool_Model
+from tsn.dao import addOrUpdateSchool, getSchoolBySchoolId
+from tsn.dao import getTsnAccountByid
+from sdk.private import TiShiNengPrivate
+from sdk.client import getTsnClientById, tsnPasswordAuthServer
+from sdk.runserver import TsnRunServer, TsnRunType
+from sdk.spider import startSpider
+from sdk.validcount import crawl_valid_count_for_account
 
 logger.remove()
 logger.add(sys.stderr, level=os.getenv("LOG_LEVEL", "INFO"),
@@ -242,7 +242,7 @@ async def cmd_face(args):
         rs = TsnRunServer(accountId=account.id, runKiloMeter=2.0, logRunType=TsnRunType.freedom)
         rs.accountModel = account
         rs.tsnClient = await getTsnClientById(account.id, db)
-        rs.isPublic = rs.tsnClient.isPublic()
+        rs.isPublic = rs.client.isPublic()
         data = await rs.getFaceImage()
         print(f"✅ 人脸图片 {len(data)} bytes")
 
@@ -290,12 +290,12 @@ async def cmd_selftest(args):
     import time
     import uuid as _uuid
 
-    import compliance
-    import deviceModel
-    from TiShiNengRunPathManage import genTiShiNengRunPathRepeat
+    from tsn import compliance
+    from app.device import deviceModel
+    from sdk.runpath import genTiShiNengRunPathRepeat
 
     ref = synthetic_route(getattr(args, "lat", 30.0), getattr(args, "lng", 120.0))
-    dev = deviceModel.deviceModel
+    dev = deviceModel
     ok = 0
     for i in range(int(args.count)):
         need = random.uniform(2040, 2095)
@@ -353,12 +353,13 @@ async def cmd_run(args):
 
 # ---------------------------------------------------------------- 补跑 / 盘点（独立脚本代理）
 def _script(name: str) -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+    """仓库根下的入口脚本路径；子目录脚本用 "app/backfill.py" 这样的相对路径。"""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), *name.split("/"))
 
 
 async def cmd_backfill(args):
     import subprocess
-    cmd = [sys.executable, _script("backfill.py"), "--count", str(args.count)]
+    cmd = [sys.executable, _script("app/backfill.py"), "--count", str(args.count)]
     if args.plan:
         cmd += ["--plan", args.plan]
     if args.dates:
@@ -389,7 +390,7 @@ async def cmd_backfill(args):
 
 async def cmd_progress(args):
     import subprocess
-    cmd = [sys.executable, _script("progress.py")]
+    cmd = [sys.executable, _script("app/progress.py")]
     if args.json:
         cmd.append("--json")
     return subprocess.call(cmd, cwd=os.path.dirname(os.path.abspath(__file__)))
@@ -397,7 +398,7 @@ async def cmd_progress(args):
 
 async def cmd_verify_plan(args):
     import subprocess
-    cmd = [sys.executable, _script("verify_plan.py")]
+    cmd = [sys.executable, _script("track/verify_plan.py")]
     if args.plan:
         cmd += ["--plan", args.plan]
     return subprocess.call(cmd, cwd=os.path.dirname(os.path.abspath(__file__)))

@@ -1,7 +1,7 @@
 """路由与 URL 拼接的单测：这里固化「丢斜杠」这个历史致命 bug。"""
 import unittest
 
-import tsn_routes as R
+from tsn import routes as R
 
 
 class JoinUrl(unittest.TestCase):

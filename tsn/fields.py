@@ -450,8 +450,8 @@ def migrate_legacy(payload: Mapping[str, Any], *, device: Optional[Mapping[str, 
         data['gitudeLatitude'] = canonical_points(raw_points, total_steps or None)
 
     if device_id and 'environment' not in data:
-        import tsn_env  # 延迟导入：字段表本身不该依赖环境探测
-        data['environment'] = tsn_env.build_environment_payload(device_id=device_id)
+        from tsn import env  # 延迟导入：字段表本身不该依赖环境探测
+        data['environment'] = env.build_environment_payload(device_id=device_id)
 
     for legacy_key in ('points', 'formatSportRange', 'formatSportTime', 'runType', 'userId'):
         data.pop(legacy_key, None)
@@ -612,7 +612,7 @@ def to_markdown() -> str:
     lines: List[str] = [
         '# 字段对照：旧版 v2.0.23 → 新版 v3.6.814',
         '',
-        '> 本文件由 `tsn_fields.py` 渲染（`python tools/render_field_doc.py`），不要手改。',
+        '> 本文件由 `fields.py` 渲染（`python tools/render_field_doc.py`），不要手改。',
         '> 证据口径：`echo`=服务器回显原文，`probe`=我们自己发请求的返回，`doc`=APK 逆向笔记。',
         '',
     ]
@@ -644,7 +644,7 @@ def to_markdown() -> str:
     lines.append('## 七、一键迁移')
     lines.append('')
     lines.append('```python')
-    lines.append('from tsn_fields import migrate_legacy, audit_submission')
+    lines.append('from tsn.fields import migrate_legacy, audit_submission')
     lines.append('')
     lines.append('new_payload = migrate_legacy(old_payload)      # 字段搬迁 + 格式化')
     lines.append('for issue in audit_submission(new_payload):    # 体检')

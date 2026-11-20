@@ -20,7 +20,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from TiShiNengError import ErrorCode, TiShiNengError
+from sdk.errors import ErrorCode, TiShiNengError
 
 SAFE_COMPONENT = re.compile(r'[^A-Za-z0-9_.-]')
 ALLOWED_EXT = {'.jpg', '.jpeg', '.png'}

@@ -38,7 +38,7 @@ import sys
 import time
 import uuid
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Windows 控制台默认 GBK，🚫/⚠️ 之类符号会直接把脚本打崩
 if hasattr(sys.stdout, 'buffer') and not getattr(sys.stdout, '_utf8_wrapped', False):
@@ -46,12 +46,12 @@ if hasattr(sys.stdout, 'buffer') and not getattr(sys.stdout, '_utf8_wrapped', Fa
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
     sys.stdout._utf8_wrapped = sys.stderr._utf8_wrapped = True
 
-import compliance
-import config
-import deviceModel
-from TiShiNengRunPathManage import genTiShiNengRunPathRepeat
-import tsn_submit
-from TiShiNengSdkPublic import TiShiNengSdkPublic
+from tsn import compliance
+from app import config
+from app.device import deviceModel
+from sdk.runpath import genTiShiNengRunPathRepeat
+from tsn import submit as tsn_submit
+from sdk.public import TiShiNengSdkPublic
 
 # ---------------------------------------------------------------- 常量
 
@@ -363,15 +363,15 @@ def _pick_path(ref, setting, target_m: float, rng) -> list[list[float]]:
     """参考线路 / 合成线路二选一；合成器优先用 track_shape（若仓库里有）。"""
     ring = _fence_ring(setting.get('geofence'))
     try:
-        import track_shape  # 老仓库有这个模块，重构版可能没有
+        from track import shape  # 轨迹形态合成器
     except Exception:  # noqa: BLE001
-        track_shape = None
+        shape = None
 
-    if ring and len(ring) >= 3 and track_shape is not None:
+    if ring and len(ring) >= 3 and shape is not None:
         try:
-            return track_shape.synthesize_path(ring, rng, target_m)
+            return shape.synthesize_path(ring, rng, target_m)
         except Exception as exc:  # noqa: BLE001
-            print(f'⚠️ track_shape.synthesize_path 失败（{type(exc).__name__}），退回内置合成器')
+            print(f'⚠️ shape.synthesize_path 失败（{type(exc).__name__}），退回内置合成器')
 
     if ref and len(ref) >= 3:
         path = _jitter_ref(ref, rng)
@@ -423,8 +423,8 @@ def steps_from_points(points, bucket_ms: int = 60000) -> list[int]:
 
 def _max_stride() -> float:
     try:
-        import track_metrics
-        return float(getattr(track_metrics, 'STRIDE_MAX_M', 1.20))
+        from track import metrics
+        return float(getattr(metrics, 'STRIDE_MAX_M', 1.20))
     except Exception:  # noqa: BLE001
         return 1.20
 
@@ -480,11 +480,11 @@ def build_run(day: datetime.date, ref, setting, rng) -> dict:
         'start_ts_ms': start_ts,
         'end_ts_ms': end_ts,
         'pace': pace,
-        'app_version': deviceModel.deviceModel.app_version,
-        'brand': deviceModel.deviceModel.brand,
-        'model': deviceModel.deviceModel.model,
-        'system': deviceModel.deviceModel.system,
-        'osver': deviceModel.deviceModel.osver,
+        'app_version': deviceModel.app_version,
+        'brand': deviceModel.brand,
+        'model': deviceModel.model,
+        'system': deviceModel.system,
+        'osver': deviceModel.osver,
         'required_range_m': tsn_submit.per_run_range_meters(setting),
         'start_qualified_min': setting.get('startQualifiedTime'),
         'end_qualified_min': tsn_submit.adaptive_end_qualified_time(setting, dist),
@@ -536,8 +536,8 @@ async def make_client() -> TiShiNengSdkPublic:
 
     tsn = TiShiNengSdkPublic(
         1, int(cfg.get('school_id') or 0), str(cfg.get('school_code') or ''), '',
-        str(uuid.uuid4()), deviceModel.deviceModel.brand, deviceModel.deviceModel.model,
-        deviceModel.deviceModel.osver, '', deviceModel.deviceModel.a_list)
+        str(uuid.uuid4()), deviceModel.brand, deviceModel.model,
+        deviceModel.osver, '', deviceModel.a_list)
     tsn.setCloudUrl(str(cfg.get('base_url') or ''))
     tok = await tsn.getAccessToken(user, pwd)
     return _apply_token(tsn, tok)
@@ -768,7 +768,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument('--end', default='', help='--auto-dates 的结束日期 YYYY-MM-DD')
     ap.add_argument('--weekdays', action='store_true', help='只挑工作日')
     ap.add_argument('--gap', type=int, default=1, help='抽样最小间隔（天）')
-    ap.add_argument('--stride', type=float, default=0.0, help='覆盖 track_metrics 的基准步幅（谨慎：影响门禁）')
+    ap.add_argument('--stride', type=float, default=0.0, help='覆盖 metrics 的基准步幅（谨慎：影响门禁）')
     ap.add_argument('--seed', type=int, default=0, help='随机种子（0 = 用时间）')
     ap.add_argument('--no-face', action='store_true', help='不传人脸（会被服务端判黑名单，仅调试）')
     ap.add_argument('--submit', action='store_true', help='真的提交（默认只做本地门禁）')
@@ -829,9 +829,9 @@ async def main() -> None:
         print('离线模式（--dry-run / 未加 --submit）：跳过登录与禁跑查询，只做本地门禁')
 
     if args.stride > 0:
-        import track_metrics
-        before = getattr(track_metrics, 'STRIDE_BASE_M', 0.86)
-        track_metrics.STRIDE_BASE_M = float(args.stride)
+        from track import metrics
+        before = getattr(metrics, 'STRIDE_BASE_M', 0.86)
+        metrics.STRIDE_BASE_M = float(args.stride)
         print(f'步幅基准 {before} → {args.stride}（注意：本仓库门禁要求 0.62–1.20 m）')
 
     ref, refrec = load_reference()

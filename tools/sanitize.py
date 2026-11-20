@@ -67,7 +67,7 @@ TEXT_TARGETS = [
     'tests/test_legacy_equivalence.py',
     'tools/snapshot_legacy.py',
     'tools/audit_gates.py',
-    'tsn_fields.py',
+    'fields.py',
 ]
 
 
