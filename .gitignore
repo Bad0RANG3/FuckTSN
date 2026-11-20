@@ -1,0 +1,44 @@
+# ---- 虚拟环境 / IDE ----
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ---- 本地配置与凭据（从 config.example.json 复制后自行填写，绝不入库）----
+config.json
+account.txt
+.env
+.env.*
+tsn_token.json
+
+# ---- 本地数据：账号库 / 人脸 / 日志 / 台账 ----
+*.db
+*.sqlite
+*.sqlite3
+face_images/
+logs/
+*.log
+run_history.json
+plan.json
+reference.json
+
+# ---- 生成物 / 临时产物 ----
+*.patch
+*_report.json
+campus_dataset.py
+diag_*.py
+find_school.py
+stage*.py
+stage*_out.txt
+stage*_report.json
+tsn_login.py
+DEPLOY_REPORT.md
+prs/
+nul

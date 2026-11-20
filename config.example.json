@@ -1,0 +1,7 @@
+{
+ "school_id": 100,
+ "school_code": "pku",
+ "base_url": "https://h.tsnkj.com",
+ "account_file": "account.txt",
+ "plan_file": "plan.json"
+}
